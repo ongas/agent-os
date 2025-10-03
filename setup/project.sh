@@ -11,6 +11,7 @@ OVERWRITE_INSTRUCTIONS=false
 OVERWRITE_STANDARDS=false
 CLAUDE_CODE=false
 CURSOR=false
+GEMINI=false
 PROJECT_TYPE=""
 
 # Parse command line arguments
@@ -36,6 +37,10 @@ while [[ $# -gt 0 ]]; do
             CURSOR=true
             shift
             ;;
+        --gemini|--gemini-flash)
+            GEMINI=true
+            shift
+            ;;
         --project-type=*)
             PROJECT_TYPE="${1#*=}"
             shift
@@ -49,6 +54,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --overwrite-standards       Overwrite existing standards files"
             echo "  --claude-code               Add Claude Code support"
             echo "  --cursor                    Add Cursor support"
+            echo "  --gemini                    Add Gemini Flash support"
             echo "  --project-type=TYPE         Use specific project type for installation"
             echo "  -h, --help                  Show this help message"
             echo ""
@@ -119,6 +125,15 @@ if [ "$IS_FROM_BASE" = true ]; then
            grep -A1 "cursor:" "$BASE_AGENT_OS/config.yml" | grep -q "enabled: true"; then
             CURSOR=true
             echo "  ✓ Auto-enabling Cursor support (from Agent OS config)"
+        fi
+    fi
+
+    if [ "$GEMINI" = false ]; then
+        # Check if gemini is enabled in base config
+        if grep -q "gemini:" "$BASE_AGENT_OS/config.yml" && \
+           grep -A1 "gemini:" "$BASE_AGENT_OS/config.yml" | grep -q "enabled: true"; then
+            GEMINI=true
+            echo "  ✓ Auto-enabling Gemini support (from Agent OS config)"
         fi
     fi
 
@@ -268,6 +283,36 @@ if [ "$CURSOR" = true ]; then
     fi
 fi
 
+# Handle Gemini installation for project
+if [ "$GEMINI" = true ]; then
+    echo ""
+    echo "📥 Installing Gemini support..."
+    mkdir -p "./.gemini/agents"
+
+    if [ "$IS_FROM_BASE" = true ]; then
+        # Copy from base installation
+        echo "  📂 Agents:"
+        for agent in context-fetcher date-checker file-creator git-workflow project-manager test-runner; do
+            if [ -f "$BASE_AGENT_OS/gemini/agents/${agent}.md" ]; then
+                copy_file "$BASE_AGENT_OS/gemini/agents/${agent}.md" "./.gemini/agents/${agent}.md" "false" "agents/${agent}.md"
+            else
+                echo "  ⚠️  Warning: ${agent}.md not found in base installation"
+            fi
+        done
+    else
+        # Download from GitHub when using --no-base
+        echo "  Downloading Gemini files from GitHub..."
+        echo ""
+        echo "  📂 Agents:"
+        for agent in context-fetcher date-checker file-creator git-workflow project-manager test-runner; do
+            download_file "${BASE_URL}/gemini/agents/${agent}.md" \
+                "./.gemini/agents/${agent}.md" \
+                "false" \
+                "agents/${agent}.md"
+        done
+    fi
+fi
+
 # Success message
 echo ""
 echo "✅ Agent OS has been installed in your project ($PROJECT_NAME)!"
@@ -283,6 +328,10 @@ fi
 
 if [ "$CURSOR" = true ]; then
     echo "   .cursor/rules/             - Cursor command rules"
+fi
+
+if [ "$GEMINI" = true ]; then
+    echo "   .gemini/agents/            - Gemini specialized agents"
 fi
 
 echo ""
